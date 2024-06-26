@@ -1,0 +1,80 @@
+# Menghubungkan Google Drive dengan Google Colab
+from google.colab import drive
+drive.mount('/content/drive')
+
+# Import library yang diperlukan
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
+import matplotlib.pyplot as plt
+
+# Persiapan dataset menggunakan ImageDataGenerator
+train_datagen = ImageDataGenerator(
+    rescale=1./255,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True,
+    validation_split=0.2  # Proporsi untuk validation set
+)
+
+# Mengatur path dataset di Google Drive
+train_generator = train_datagen.flow_from_directory(
+    '/content/drive/My Drive/Colab Notebooks/dataset tulisan',  # Sesuaikan dengan path dataset di Google Drive Anda
+    target_size=(64, 64),
+    batch_size=32,
+    class_mode='categorical',
+    subset='training'  # Memuat bagian training dataset
+)
+
+validation_generator = train_datagen.flow_from_directory(
+    '/content/drive/My Drive/Colab Notebooks/dataset tulisan',  # Sesuaikan dengan path dataset di Google Drive Anda
+    target_size=(64, 64),
+    batch_size=32,
+    class_mode='categorical',
+    subset='validation'  # Memuat bagian validation dataset
+)
+
+# Membangun model CNN
+model = Sequential([
+    Conv2D(32, (3, 3), input_shape=(64, 64, 3), activation='relu'),
+    MaxPooling2D(pool_size=(2, 2)),
+    Conv2D(64, (3, 3), activation='relu'),
+    MaxPooling2D(pool_size=(2, 2)),
+    Flatten(),
+    Dense(128, activation='relu'),
+    Dense(len(train_generator.class_indices), activation='softmax')
+])
+
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+# Pelatihan model
+history = model.fit(
+    train_generator,
+    epochs=25,
+    validation_data=validation_generator  # Menambahkan data validation
+)
+
+# Plotting hasil pelatihan (accuracy dan loss)
+plt.figure(figsize=(12, 6))
+
+# Plot accuracy train dan validation
+plt.subplot(1, 2, 1)
+plt.plot(history.history['accuracy'], label='train accuracy')
+plt.plot(history.history['val_accuracy'], label='validation accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.title('Training and Validation Accuracy')
+plt.legend()
+
+# Plot loss train dan validation
+plt.subplot(1, 2, 2)
+plt.plot(history.history['loss'], label='train loss', color='red')
+plt.plot(history.history['val_loss'], label='validation loss', color='green')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Training and Validation Loss')
+plt.legend()
+
+plt.tight_layout()
+plt.show()
