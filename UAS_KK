@@ -1,80 +1,145 @@
-# Menghubungkan Google Drive dengan Google Colab
-from google.colab import drive
-drive.mount('/content/drive')
-
-# Import library yang diperlukan
-import tensorflow as tf
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
+# Import library yang dibutuhkan
+import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Embedding, Conv1D, GlobalMaxPooling1D, Dense, Dropout
+from tensorflow.keras.callbacks import EarlyStopping
 
-# Persiapan dataset menggunakan ImageDataGenerator
-train_datagen = ImageDataGenerator(
-    rescale=1./255,
-    shear_range=0.2,
-    zoom_range=0.2,
-    horizontal_flip=True,
-    validation_split=0.2  # Proporsi untuk validation set
-)
+# Data teks dengan 50 komentar negatif dan positif
+data = {
+    'text': [
+        "Saya sangat menyukai layanan yang diberikan oleh perusahaan ini. Pelayanannya cepat dan ramah.",
+        "Makanannya enak dan suasana restorannya sangat nyaman. Saya pasti akan kembali lagi.",
+        "Pengalaman belanja di toko ini sangat memuaskan. Barang-barangnya berkualitas dan harganya terjangkau.",
+        "Film ini memiliki plot yang sangat menarik dan akting para pemainnya luar biasa.",
+        "Saya baru saja mencoba produk baru ini dan sangat puas dengan hasilnya.",
+        "Aplikasi ini sangat membantu dalam mengatur jadwal harian saya. Fungsionalitasnya sangat bagus.",
+        "Hotel ini memiliki fasilitas yang sangat lengkap dan stafnya sangat profesional.",
+        "Saya menikmati setiap menit dari acara ini. Sangat menghibur dan edukatif.",
+        "Produk kecantikan ini benar-benar membuat kulit saya lebih cerah dan halus.",
+        "Tempat wisata ini sangat indah dan saya sangat menikmati kunjungan saya ke sini.",
+        "Layanan pelanggan di perusahaan ini sangat buruk. Saya harus menunggu lama untuk mendapatkan bantuan.",
+        "Makanan di restoran ini sangat tidak enak dan pelayanannya lambat.",
+        "Pengalaman belanja online saya sangat buruk. Barang yang diterima tidak sesuai dengan yang dipesan.",
+        "Film ini sangat membosankan dan tidak memiliki alur cerita yang jelas.",
+        "Produk ini tidak efektif sama sekali dan sangat mengecewakan.",
+        "Aplikasi ini sering mengalami crash dan sangat sulit digunakan.",
+        "Kamar hotel ini sangat kotor dan tidak nyaman. Sangat mengecewakan.",
+        "Acara ini sangat membosankan dan tidak menarik sama sekali.",
+        "Produk ini menyebabkan iritasi kulit saya. Sangat tidak direkomendasikan.",
+        "Tempat wisata ini sangat ramai dan tidak terawat. Saya tidak akan datang lagi ke sini.",
+        "Kursus online ini sangat membantu dan materinya sangat bagus.",
+        "Tim dukungan teknis perusahaan ini sangat responsif dan membantu.",
+        "Saya merasa sangat puas dengan layanan purna jual dari perusahaan ini.",
+        "Aplikasi mobile banking ini sangat mudah digunakan dan sangat membantu.",
+        "Pengalaman spa di hotel ini sangat menyenangkan dan menenangkan.",
+        "Kualitas produk yang saya beli dari toko online ini sangat baik.",
+        "Acara musik live ini sangat menghibur dan penyanyi utamanya sangat berbakat.",
+        "Produk ini membantu saya dalam meningkatkan produktivitas harian.",
+        "Restoran ini memiliki pilihan menu yang sangat beragam dan semuanya lezat.",
+        "Sistem pembayaran di aplikasi ini sangat aman dan cepat.",
+        "Pengiriman barang dari toko online ini sangat cepat dan aman.",
+        "Sistem reservasi hotel ini sangat mudah digunakan dan sangat efisien.",
+        "Saya sangat kecewa dengan layanan pelanggan perusahaan ini.",
+        "Produk ini tidak sesuai dengan deskripsi yang ada di website.",
+        "Aplikasi ini sering crash dan tidak dapat digunakan dengan baik.",
+        "Layanan dari restoran ini sangat buruk dan makanannya tidak enak.",
+        "Film ini sangat tidak menarik dan saya tidak merekomendasikannya.",
+        "Kualitas produk ini sangat buruk dan saya merasa sangat kecewa.",
+        "Pengalaman belanja di toko ini sangat buruk dan stafnya tidak ramah.",
+        "Saya merasa sangat kecewa dengan layanan purna jual dari perusahaan ini.",
+        "Produk ini menyebabkan masalah pada kulit saya.",
+        "Acara ini sangat tidak menarik dan membosankan.",
+        "Hotel ini sangat kotor dan fasilitasnya sangat buruk.",
+        "Saya tidak puas dengan layanan yang diberikan oleh perusahaan ini.",
+        "Pengalaman makan di restoran ini sangat mengecewakan.",
+        "Produk ini sangat tidak efektif dan saya merasa sangat kecewa.",
+        "Aplikasi ini sangat lambat dan tidak responsif.",
+        "Pengalaman belanja online saya sangat mengecewakan dan tidak memuaskan.",
+        "Saya tidak akan merekomendasikan layanan ini kepada siapapun.",
+        "Tempat wisata ini sangat kotor dan tidak terawat dengan baik.",
+        "barang tidak sesuai pesanan",
+        "barangnya bagus", "sesuai dengan pesanan", "tidak sesuai dengan pesanan",
+        "jancok","kamu jelek","bagus","bagus banget",
+    ],
+    'label': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+              1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0,1,1,0,0,0,1,1]
+}
+df = pd.DataFrame(data)
 
-# Mengatur path dataset di Google Drive
-train_generator = train_datagen.flow_from_directory(
-    '/content/drive/My Drive/Colab Notebooks/dataset tulisan',  # Sesuaikan dengan path dataset di Google Drive Anda
-    target_size=(64, 64),
-    batch_size=32,
-    class_mode='categorical',
-    subset='training'  # Memuat bagian training dataset
-)
+# Pra-pemrosesan teks
+tokenizer = Tokenizer(num_words=5000)
+tokenizer.fit_on_texts(df['text'])
+X = tokenizer.texts_to_sequences(df['text'])
+X = pad_sequences(X, maxlen=100)
+y = df['label']
 
-validation_generator = train_datagen.flow_from_directory(
-    '/content/drive/My Drive/Colab Notebooks/dataset tulisan',  # Sesuaikan dengan path dataset di Google Drive Anda
-    target_size=(64, 64),
-    batch_size=32,
-    class_mode='categorical',
-    subset='validation'  # Memuat bagian validation dataset
-)
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Membangun model CNN
-model = Sequential([
-    Conv2D(32, (3, 3), input_shape=(64, 64, 3), activation='relu'),
-    MaxPooling2D(pool_size=(2, 2)),
-    Conv2D(64, (3, 3), activation='relu'),
-    MaxPooling2D(pool_size=(2, 2)),
-    Flatten(),
-    Dense(128, activation='relu'),
-    Dense(len(train_generator.class_indices), activation='softmax')
-])
+# Membuat model CNN dengan dropout
+model = Sequential()
+model.add(Embedding(input_dim=5000, output_dim=128, input_length=100))
+model.add(Conv1D(filters=64, kernel_size=5, activation='relu'))  # Mengurangi jumlah filter
+model.add(GlobalMaxPooling1D())
+model.add(Dense(units=10, activation='relu'))
+model.add(Dropout(0.5))  # Dropout dengan rate 50%
+model.add(Dense(units=1, activation='sigmoid'))
 
-model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+model.summary()
+
+# Callback early stopping
+early_stopping = EarlyStopping(monitor='val_loss', patience=3)
 
 # Pelatihan model
-history = model.fit(
-    train_generator,
-    epochs=25,
-    validation_data=validation_generator  # Menambahkan data validation
-)
+history = model.fit(X_train, y_train, epochs=25, batch_size=16, validation_data=(X_test, y_test), callbacks=[early_stopping])
 
-# Plotting hasil pelatihan (accuracy dan loss)
-plt.figure(figsize=(12, 6))
+# Evaluasi model
+loss, accuracy = model.evaluate(X_test, y_test)
+print(f"Loss: {loss}, Accuracy: {accuracy}")
 
-# Plot accuracy train dan validation
+# Menampilkan grafik akurasi
+plt.figure(figsize=(12, 4))
+
 plt.subplot(1, 2, 1)
-plt.plot(history.history['accuracy'], label='train accuracy')
-plt.plot(history.history['val_accuracy'], label='validation accuracy')
-plt.xlabel('Epoch')
-plt.ylabel('Accuracy')
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
 plt.title('Training and Validation Accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
 plt.legend()
 
-# Plot loss train dan validation
+# Menampilkan grafik loss
 plt.subplot(1, 2, 2)
-plt.plot(history.history['loss'], label='train loss', color='red')
-plt.plot(history.history['val_loss'], label='validation loss', color='green')
-plt.xlabel('Epoch')
-plt.ylabel('Loss')
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
 plt.title('Training and Validation Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
 plt.legend()
 
-plt.tight_layout()
 plt.show()
+
+# Menambahkan komentar baru
+new_comment = "saya sangat suka produknya."
+
+# Pra-pemrosesan teks untuk komentar baru
+X_new = tokenizer.texts_to_sequences([new_comment])
+X_new = pad_sequences(X_new, maxlen=100)
+
+# Melakukan prediksi dengan model
+prediction = model.predict(X_new)
+
+# Mengambil label prediksi
+predicted_label = "Positif" if prediction[0][0] >= 0.5 else "Negatif"
+confidence = prediction[0][0] if predicted_label == "Positif" else 1 - prediction[0][0]
+
+# Menampilkan hasil prediksi
+print(f"Komentar: '{new_comment}'")
+print(f"Prediksi Sentimen: {predicted_label} (Confidence: {confidence:.4f})")
